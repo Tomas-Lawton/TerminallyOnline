@@ -52,12 +52,19 @@
 
 body {
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root {
   max-width: 100%;
   margin: 0 auto;
-  text-align: center;
+  text-align: left;
   border-inline: 1px solid var(--border);
   min-height: 100svh;
   display: flex;

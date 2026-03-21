@@ -1,0 +1,42 @@
+@keyframes tgShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-3px); }
+}
+
+@keyframes tgBlink {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0; }
+}
+
+@keyframes tgPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+input::placeholder {
+  color: #1a1a1e;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #151518;
+  border-radius: 3px;
+}
+
+::selection {
+  background: rgba(74, 222, 128, 0.2);
+}
+
+.tg-completed-step:hover {
+  color: #fff !important;
+  opacity: 1 !important;
+}
