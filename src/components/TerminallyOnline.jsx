@@ -170,12 +170,14 @@ export default function TerminallyOnline() {
   }, [cwd]);
 
   const go = useCallback(() => {
-    if (lessonDone) return;
     const trimmed = input.trim();
-    const ctrlStep = st?.accept?.some(a => /^ctrl\+/i.test(a));
 
-    // Block all non-Ctrl input during Ctrl steps (process is "running")
-    if (ctrlStep && !/^ctrl\+/i.test(trimmed)) { setInput(""); return; }
+    if (!lessonDone) {
+      const ctrlStep = st?.accept?.some(a => /^ctrl\+/i.test(a));
+
+      // Block all non-Ctrl input during Ctrl steps (process is "running")
+      if (ctrlStep && !/^ctrl\+/i.test(trimmed)) { setInput(""); return; }
+    }
 
     // Empty enter — just show a blank prompt line like a real terminal
     if (!trimmed) { setHist(h => [...h, { t: "in", v: "", dir: cwd }]); setInput(""); return; }
@@ -184,23 +186,25 @@ export default function TerminallyOnline() {
 
     if (c === "help") { setHist(h => [...h, { t: "in", v: trimmed, dir: cwd }, { t: "help" }]); setInput(""); return; }
     if (c === "clear") {
-      // If the current step expects "clear", advance the step too
-      const clearOk = st && st.accept && st.accept.some(a => norm(a) === "clear");
-      if (clearOk) {
-        setHist(st.note ? [{ t: "note", v: st.note }] : []);
-        setHint(false); setInput("");
-        const nx = stIdx + 1;
-        if (nx >= ch.steps.length) { setDone(d => new Set([...d, chIdx])); setHist(h => [...h, { t: "done", v: ch.title }]); }
-        setStIdx(nx);
-        setMaxStIdx(m => Math.max(m, nx));
-        saveStepProgress(chIdx, nx);
-      } else {
-        setHist([]); setInput("");
+      if (!lessonDone) {
+        // If the current step expects "clear", advance the step too
+        const clearOk = st && st.accept && st.accept.some(a => norm(a) === "clear");
+        if (clearOk) {
+          setHist(st.note ? [{ t: "note", v: st.note }] : []);
+          setHint(false); setInput("");
+          const nx = stIdx + 1;
+          if (nx >= ch.steps.length) { setDone(d => new Set([...d, chIdx])); setHist(h => [...h, { t: "done", v: ch.title }]); }
+          setStIdx(nx);
+          setMaxStIdx(m => Math.max(m, nx));
+          saveStepProgress(chIdx, nx);
+          return;
+        }
       }
+      setHist([]); setInput("");
       return;
     }
 
-    if (c === "skip") {
+    if (!lessonDone && c === "skip") {
       // If the skipped step is a cd command, update cwd based on the hint
       const skipDir = resolveCd(norm(st.hint));
       if (skipDir) setCwd(skipDir);
@@ -214,22 +218,26 @@ export default function TerminallyOnline() {
       return;
     }
 
-    // Check if it matches the current step first
-    const ok = st.accept.some(a => norm(a) === c);
-    setCmdH(h => [trimmed, ...h]); setCmdI(-1);
-    recordCommand();
+    if (!lessonDone) {
+      // Check if it matches the current step first
+      const ok = st.accept.some(a => norm(a) === c);
+      setCmdH(h => [trimmed, ...h]); setCmdI(-1);
+      recordCommand();
 
-    if (ok) {
-      const newDir = resolveCd(c);
-      if (newDir) setCwd(newDir);
-      setHist(h => [...h, { t: "in", v: trimmed, dir: cwd }, ...(st.output ? [{ t: "out", v: st.output }] : []), { t: "note", v: st.note }]);
-      setHint(false); setInput("");
-      const nx = stIdx + 1;
-      if (nx >= ch.steps.length) { setDone(d => new Set([...d, chIdx])); setHist(h => [...h, { t: "done", v: ch.title }]); }
-      setStIdx(nx);
-      setMaxStIdx(m => Math.max(m, nx));
-      saveStepProgress(chIdx, nx);
-      return;
+      if (ok) {
+        const newDir = resolveCd(c);
+        if (newDir) setCwd(newDir);
+        setHist(h => [...h, { t: "in", v: trimmed, dir: cwd }, ...(st.output ? [{ t: "out", v: st.output }] : []), { t: "note", v: st.note }]);
+        setHint(false); setInput("");
+        const nx = stIdx + 1;
+        if (nx >= ch.steps.length) { setDone(d => new Set([...d, chIdx])); setHist(h => [...h, { t: "done", v: ch.title }]); }
+        setStIdx(nx);
+        setMaxStIdx(m => Math.max(m, nx));
+        saveStepProgress(chIdx, nx);
+        return;
+      }
+    } else {
+      setCmdH(h => [trimmed, ...h]); setCmdI(-1);
     }
 
     // Common commands always work — the terminal should feel real
@@ -301,8 +309,9 @@ export default function TerminallyOnline() {
       return;
     }
 
-    // Check previous steps in the current chapter — user may re-run earlier commands
-    for (let i = 0; i < stIdx; i++) {
+    // Check steps in the current chapter — user may re-run earlier commands (or any command after completion)
+    const checkUpTo = lessonDone ? ch.steps.length : stIdx;
+    for (let i = 0; i < checkUpTo; i++) {
       const prev = ch.steps[i];
       if (prev.accept.some(a => norm(a) === c)) {
         const newDir = resolveCd(c);
@@ -323,7 +332,10 @@ export default function TerminallyOnline() {
       "zip", "unzip", "gzip", "gunzip", "make", "gcc", "python", "python3", "node", "bash"];
     const firstWord = c.split(/\s+/)[0];
     if (knownCmds.includes(firstWord)) {
-      setHist(h => [...h, { t: "in", v: trimmed, dir: cwd }, { t: "out", v: `(simulated) ✓ valid command — but this step is asking for something else. Check the task on the left.` }]);
+      const msg = lessonDone
+        ? `(simulated) ✓ valid command`
+        : `(simulated) ✓ valid command — but this step is asking for something else. Check the task on the left.`;
+      setHist(h => [...h, { t: "in", v: trimmed, dir: cwd }, { t: "out", v: msg }]);
       setInput("");
       return;
     }

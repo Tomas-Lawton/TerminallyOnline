@@ -1143,8 +1143,44 @@ export default function MenuScreen({
           </div>
         )}
 
-        {/* Done prompt */}
-        {lessonDone && <Prompt dir={cwdDisplay} />}
+        {/* Done — free-play input */}
+        {lessonDone && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginTop: hist.length > 0 ? 4 : 0,
+            }}
+          >
+            <span style={{ color: "#4ade80", fontWeight: 700, marginRight: 8, fontSize: mob ? 16 : FS }}>
+              {prompt}{" "}
+            </span>
+            <input
+              ref={inRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKd}
+              onClick={(e) => e.stopPropagation()}
+              placeholder=""
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              spellCheck={false}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "#f0f0f0",
+                fontSize: mob ? 16 : FS,
+                fontFamily: mono,
+                padding: mob ? "8px 0" : "4px 0",
+                caretColor: "#4ade80",
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   ) : (
