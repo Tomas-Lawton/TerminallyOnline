@@ -21,7 +21,7 @@ export default function OnboardingModal({ mob, onClose }) {
           border: "1px solid #33333e",
           borderRadius: 12,
           padding: mob ? 24 : 36,
-          maxWidth: 480,
+          maxWidth: 560,
           width: "100%",
           fontFamily: mono,
           color: "#aaa",
@@ -35,7 +35,6 @@ export default function OnboardingModal({ mob, onClose }) {
             color: "#f0f0f0",
             fontSize: mob ? 18 : 20,
             fontWeight: 800,
-            margin: "0 0 16px",
           }}
         >
           How it works
@@ -45,16 +44,14 @@ export default function OnboardingModal({ mob, onClose }) {
         <div
           style={{
             background: "#191922",
-            border: "1px solid #2a2a36",
             borderRadius: 8,
             overflow: "hidden",
-            marginBottom: 20,
-            aspectRatio: "16/10",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#555",
             fontSize: 12,
+            margin: mob ? "12px 0px" : "24px 0px"
           }}
         >
           <img src="/demo.gif" alt="Demo" style={{ width: "100%", display: "block" }} /> 

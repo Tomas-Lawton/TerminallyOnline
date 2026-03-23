@@ -80,7 +80,7 @@ export default function TerminallyOnline() {
   useEffect(() => {
     const deviceKeys = Object.keys(DEVICES);
     const handler = (e) => {
-      if (showOnboarding) { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); localStorage.setItem("tol_onboarded", "1"); setShowOnboarding(false); } return; }
+      if (showOnboarding && screen === "menu") { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); localStorage.setItem("tol_onboarded", "1"); setShowOnboarding(false); } return; }
       if (showInfo) { if (e.key === "Escape") setShowInfo(false); return; }
 
       if (screen === "landing") {
@@ -421,7 +421,7 @@ export default function TerminallyOnline() {
   }, [st, stIdx, ch, lessonDone, chIdx, resolveCd]);
 
   if (screen === "landing") return (
-    <LandingScreen mob={mob} navIdx={navIdx} setNavIdx={setNavIdx} setDevice={setDevice} setScreen={setScreen} showInfo={showInfo} setShowInfo={setShowInfo} setDone={setDone} />
+    <LandingScreen mob={mob} navIdx={navIdx} setNavIdx={setNavIdx} setDevice={setDevice} setScreen={setScreen} showInfo={showInfo} setShowInfo={setShowInfo} setDone={setDone} setShowOnboarding={setShowOnboarding} />
   );
 
   if (screen === "setup") return (

@@ -95,6 +95,9 @@ export function getTotalCommands() {
 export function resetAllProgress() {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("tol_sections_done");
+    localStorage.removeItem("tol_cert_shown");
+    localStorage.removeItem("tol_onboarded");
   } catch {
     // localStorage unavailable
   }

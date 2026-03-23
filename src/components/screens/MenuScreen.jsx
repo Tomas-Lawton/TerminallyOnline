@@ -1344,7 +1344,7 @@ export default function MenuScreen({
         <OnboardingModal mob={mob} onClose={() => { localStorage.setItem("tol_onboarded", "1"); setShowOnboarding(false); }} />
 
       )}
-      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); shownSections.current = new Set(); localStorage.removeItem("tol_sections_done"); localStorage.removeItem("tol_cert_shown"); localStorage.removeItem("tol_onboarded"); setShowOnboarding(true); }} />}
+      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); shownSections.current = new Set(); setShowOnboarding(true); }} />}
       {showShare && (
         <ShareCard mob={mob} done={done} onClose={() => setShowShare(false)} />
       )}

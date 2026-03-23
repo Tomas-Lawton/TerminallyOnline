@@ -15,6 +15,7 @@ export default function LandingScreen({
   showInfo,
   setShowInfo,
   setDone,
+  setShowOnboarding,
 }) {
   return (
     <div
@@ -31,7 +32,7 @@ export default function LandingScreen({
         overflow: "hidden",
       }}
     >
-      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); }} />}
+      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); setShowOnboarding(true); }} />}
       <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }}>
         <div style={{ marginBottom: 48 }}>
           <p

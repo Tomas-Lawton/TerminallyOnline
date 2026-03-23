@@ -50,12 +50,12 @@ export default function InfoModal({ mob, onClose, onReset }) {
         <p style={{ marginTop: 16 }}><span style={{ color: "#f0f0f0" }}>Practice tip:</span> Don't just complete each step once. Come back and try from memory. Real learning happens when your fingers know the command before your brain finishes the thought.</p>
 
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #2a2a36", display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <a href="https://buymeacoffee.com/tomaslawton" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", background: "#1a2e1a", border: "1px solid #2d4a2d", color: "#4ade80", padding: "8px 16px", borderRadius: 6, fontSize: 13, textDecoration: "none", fontWeight: 600, fontFamily: mono }}>☕ Buy me a coffee</a>
+          <a href="https://buymeacoffee.com/tomaslawton" target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", background: "#1a2e1a", border: "1px solid #2d4a2d", color: "#4ade80", padding: "8px 16px", borderRadius: 6, fontSize: 13, textDecoration: "none", fontWeight: 600, fontFamily: mono }}>Buy me a coffee</a>
           <button
             onClick={() => { setShowFeedback(f => !f); setFbStatus(null); }}
             style={{ background: "none", border: "1px solid #33333e", color: "#aaa", padding: "8px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: mono, fontWeight: 600 }}
           >
-            💬 Send feedback
+            Give feedback
           </button>
         </div>
 
