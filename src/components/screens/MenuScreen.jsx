@@ -5,6 +5,7 @@ import { getStreak, getTotalCommands, resetAllProgress } from "@/utils/progress"
 import { renderCode } from "@/utils/helpers";
 import InfoModal from "../ui/InfoModal";
 import ShareCard from "../ui/ShareCard";
+import OnboardingModal from "../ui/OnboardingModal";
 import SandboxScreen from "./SandboxScreen";
 import "@/styles/terminal.css";
 
@@ -64,6 +65,8 @@ export default function MenuScreen({
   setScreen,
   showInfo,
   setShowInfo,
+  showOnboarding,
+  setShowOnboarding,
   // Lesson props (only present when lesson is active)
   lessonActive,
   sandboxActive,
@@ -1337,7 +1340,11 @@ export default function MenuScreen({
           : "radial-gradient(rgb(0 252 255) 50%, rgb(141 255 185) 100%)",
       }}
     >
-      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); shownSections.current = new Set(); localStorage.removeItem("tol_sections_done"); localStorage.removeItem("tol_cert_shown"); }} />}
+      {showOnboarding && !lessonActive && !sandboxActive && (
+        <OnboardingModal mob={mob} onClose={() => { localStorage.setItem("tol_onboarded", "1"); setShowOnboarding(false); }} />
+
+      )}
+      {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); shownSections.current = new Set(); localStorage.removeItem("tol_sections_done"); localStorage.removeItem("tol_cert_shown"); localStorage.removeItem("tol_onboarded"); setShowOnboarding(true); }} />}
       {showShare && (
         <ShareCard mob={mob} done={done} onClose={() => setShowShare(false)} />
       )}

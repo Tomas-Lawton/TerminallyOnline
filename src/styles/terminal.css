@@ -15,8 +15,13 @@
   50% { opacity: 0.4; }
 }
 
-input::placeholder {
+.tg-terminal input::placeholder {
   color: #1a1a1e;
+}
+
+.tg-feedback input::placeholder,
+.tg-feedback textarea::placeholder {
+  color: #555;
 }
 
 ::-webkit-scrollbar {

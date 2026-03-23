@@ -68,6 +68,7 @@ export default function SetupScreen({ mob, device, setScreen }) {
 
   return (
     <div
+      data-setup-scroll
       style={{
         height: "100dvh",
         background: bg,

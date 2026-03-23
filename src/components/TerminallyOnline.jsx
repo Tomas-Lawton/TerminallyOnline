@@ -24,6 +24,7 @@ export default function TerminallyOnline() {
   const [cmdH, setCmdH] = useState([]);
   const [cmdI, setCmdI] = useState(-1);
   const [showInfo, setShowInfo] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem("tol_onboarded"));
   const [navIdx, setNavIdx] = useState(0);
   const [mob, setMob] = useState(false);
   const [cwd, setCwd] = useState("/home/ubuntu");
@@ -79,6 +80,7 @@ export default function TerminallyOnline() {
   useEffect(() => {
     const deviceKeys = Object.keys(DEVICES);
     const handler = (e) => {
+      if (showOnboarding) { if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); localStorage.setItem("tol_onboarded", "1"); setShowOnboarding(false); } return; }
       if (showInfo) { if (e.key === "Escape") setShowInfo(false); return; }
 
       if (screen === "landing") {
@@ -94,6 +96,8 @@ export default function TerminallyOnline() {
       else if (screen === "setup") {
         if (e.key === "Enter") { e.preventDefault(); setScreen("menu"); }
         else if (e.key === "Escape" || e.key === "Backspace") setScreen("landing");
+        else if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); const el = document.querySelector("[data-setup-scroll]"); if (el) el.scrollBy({ top: 120, behavior: "smooth" }); }
+        else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); const el = document.querySelector("[data-setup-scroll]"); if (el) el.scrollBy({ top: -120, behavior: "smooth" }); }
       }
 
       else if (screen === "menu") {
@@ -138,7 +142,7 @@ export default function TerminallyOnline() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [screen, navIdx, showInfo, menuItems, startCh, chIdx, stIdx]);
+  }, [screen, navIdx, showInfo, showOnboarding, menuItems, startCh, chIdx, stIdx]);
 
   const ch = CHAPTERS[chIdx];
   const st = ch?.steps[stIdx];
@@ -428,6 +432,7 @@ export default function TerminallyOnline() {
     <MenuScreen
       mob={mob} device={device} done={done} navIdx={navIdx} setNavIdx={setNavIdx}
       startCh={startCh} setScreen={setScreen} showInfo={showInfo} setShowInfo={setShowInfo}
+      showOnboarding={showOnboarding} setShowOnboarding={setShowOnboarding}
       lessonActive={screen === "lesson"}
       sandboxActive={screen === "sandbox"}
       chIdx={chIdx} stIdx={stIdx} maxStIdx={maxStIdx} hist={hist} hint={hint} shake={shake}
