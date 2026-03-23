@@ -67,7 +67,7 @@ export default function InfoModal({ mob, onClose, onReset }) {
               <form onSubmit={handleFeedback} className="tg-feedback" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <input
                   type="email"
-                  placeholder="Email"
+                  placeholder="Your Email"
                   value={fbEmail}
                   onChange={e => setFbEmail(e.target.value)}
                   required
