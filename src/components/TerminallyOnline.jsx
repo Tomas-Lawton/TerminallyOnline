@@ -243,12 +243,12 @@ export default function TerminallyOnline() {
     // Common commands always work — the terminal should feel real
     const common = {
       "pwd": cwd,
-      "ls": "project  notes.md  scripts  .bashrc  .ssh",
-      "ls -la": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md",
-      "ls -al": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md",
-      "ls -l": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md",
+      "ls": "project  notes.md  scripts",
+      "ls -la": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
+      "ls -al": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
+      "ls -l": "drwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
       "ls -a": ".  ..  .bashrc  .ssh  project  notes.md  scripts",
-      "ls -lah": "drwxr-xr-x  5 ubuntu ubuntu 4.0K Mar 18 22:15 .\n-rw-r--r--  1 ubuntu ubuntu 3.7K Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4.0K Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4.0K Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md",
+      "ls -lah": "drwxr-xr-x  5 ubuntu ubuntu 4.0K Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4.0K Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3.7K Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4.0K Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4.0K Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4.0K Mar 12 14:00 scripts",
       "whoami": "ubuntu",
       "hostname": "gpu-box",
       "uname": "Linux",
