@@ -1,3 +1,5 @@
+import { MAN_PAGES } from "@/data/manpages";
+
 export function resolvePath(p, cwd) {
   if (p.startsWith("/")) return p;
   if (p.startsWith("~/")) return "/home/ubuntu" + p.slice(1);
@@ -184,7 +186,13 @@ export function executeCommand(raw, cwd, fs, cmdHistory) {
   if (cmd === "uname") return { output: "Linux gpu-box 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux", newCwd: cwd };
   if (cmd === "htop" || cmd === "top") return { output: "CPU[||||||||||||       34.2%]  Mem[||||||||||||||  14.2G/61G]\n\n  PID  USER    CPU%  MEM%  COMMAND\n12345  ubuntu  45.2   8.3  python train.py\n12478  ubuntu   0.3   1.2  python inference.py\n\n  q to quit", newCwd: cwd };
   if (cmd === "ps") return { output: "ubuntu  12345 45.2 8.3 python train.py --epochs 50\nubuntu  12478  0.3 1.2 python inference.py --port 8000", newCwd: cwd };
+  if (cmd === "man") {
+    const topic = args[0];
+    if (!topic) return { output: "What manual page do you want?\nUsage: man <command>", newCwd: cwd };
+    if (MAN_PAGES[topic]) return { output: MAN_PAGES[topic], newCwd: cwd };
+    return { output: `No manual entry for ${topic}`, newCwd: cwd };
+  }
   if (cmd === "ssh" || cmd === "scp" || cmd === "rsync" || cmd === "tmux" || cmd === "curl" || cmd === "ping" || cmd === "wget") return { output: `(simulated) ${trimmed} — OK`, newCwd: cwd };
 
-  return { output: `${cmd}: command not found\nAvailable: ls, cd, cat, head, tail, grep, wc, find, tree, echo, pwd, whoami, env, which, history, clear`, newCwd: cwd };
+  return { output: `${cmd}: command not found\nAvailable: ls, cd, cat, head, tail, grep, wc, find, tree, echo, pwd, whoami, env, which, history, man, clear`, newCwd: cwd };
 }

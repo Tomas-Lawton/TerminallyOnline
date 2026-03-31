@@ -1,8 +1,10 @@
-import { useMemo, useRef, useEffect, useState } from "react";
+import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { CHAPTERS } from "@/data/chapters";
 import { DEVICES } from "@/data/devices";
-import { getStreak, getTotalCommands, resetAllProgress } from "@/utils/progress";
+import { THEMES, FONTS, PS1_COLORS, PS1_EMOJIS } from "@/data/themes";
+import { getStreak, getTotalCommands, resetAllProgress, saveProgress, saveStepProgress } from "@/utils/progress";
 import { renderCode } from "@/utils/helpers";
+import { updateShellConfig } from "@/utils/shellConfig";
 import InfoModal from "../ui/InfoModal";
 import ShareCard from "../ui/ShareCard";
 import OnboardingModal from "../ui/OnboardingModal";
@@ -15,10 +17,10 @@ const bg = "#191922";
 const FS = 13;
 
 const groups = [
-  { label: "Getting Started", color: "#f9c74f", ids: ["basics", "files", "perm", "read", "pipe", "tools"], summary: "You've learned the shell, file management, navigation, reading files, searching with grep, data pipelines with pipes, and file permissions." },
-  { label: "System & Tools", color: "#f97316", ids: ["sys", "git", "ssh"], summary: "You've mastered system monitoring, version control with git, and remote access with SSH." },
-  { label: "Infrastructure", color: "#ef4444", ids: ["docker", "nginx", "boss"], summary: "You've conquered Docker, Nginx, and handled a production incident under pressure. You're ready for real-world infrastructure." },
-  { label: "Bonus", color: "#a78bfa", ids: ["ai"], summary: "You've learned how to use AI tools in the terminal. The future is here." },
+  { label: "Getting Started", color: "#f9c74f", ids: ["basics", "files", "perm", "read", "pipe", "tools"], summary: "You've mastered the shell fundamentals — navigation, files, permissions, reading, pipes, and essential tools.", graduation: "Graduation — Shell Fundamentals" },
+  { label: "Real-World Skills", color: "#f97316", ids: ["sys", "git", "ssh", "docker", "nginx", "boss"], summary: "You've conquered system admin, version control, remote access, containers, web servers, and handled a production incident under pressure.", graduation: "Graduation — Real-World Skills" },
+  { label: "Challenges", color: "#ef4444", ids: ["ch-deploy", "ch-debug", "ch-lockdown"], summary: "You've proven you can solve real problems independently.", graduation: "Graduation — Challenge Master" },
+  { label: "Bonus", color: "#a78bfa", ids: ["custom", "ai"], summary: "You've customised your terminal and learned how to use AI tools. The extras that make you dangerous.", graduation: "Graduation — Bonus Complete" },
 ];
 
 const ASCII_ART = [
@@ -44,10 +46,10 @@ const ASCII_ART = [
   "└────────────────────────┘           ",
 ];
 
-const colorBlocks = [
+const colorBlocksBase = [
   "#3a3aae",
   "#e06060",
-  "#4ade80",
+  null, // replaced by activeTheme.accent at render time
   "#f9c74f",
   "#38bdf8",
   "#c084fc",
@@ -86,13 +88,140 @@ export default function MenuScreen({
   skip,
   restartCh,
   setDone,
+  shellConfig,
+  setShellConfig,
+  completedSteps,
+  go,
 }) {
   const inRef = useRef(null);
   const scRef = useRef(null);
   const tutRef = useRef(null);
   const [showShare, setShowShare] = useState(false);
+  const [fontSize, setFontSize] = useState(() => {
+    try { return parseInt(localStorage.getItem("tol_font_size")) || 13; } catch { return 13; }
+  });
+  const setFontSizeTo = useCallback((size) => {
+    setFontSize(size);
+    try { localStorage.setItem("tol_font_size", String(size)); } catch { /* noop */ }
+  }, []);
+  const [graduationTitle, setGraduationTitle] = useState(null); // used by graduation feature below
   const [sectionModal, setSectionModal] = useState(null);
   const shownSections = useRef(new Set(JSON.parse(localStorage.getItem("tol_sections_done") || "[]")));
+
+  // Prompt builder state — restore from shellConfig
+  const [pbEmoji, setPbEmoji] = useState(() => shellConfig?.ps1Emoji || "$");
+  const [pbShowUser, setPbShowUser] = useState(() => shellConfig?.ps1ShowUser !== undefined ? shellConfig.ps1ShowUser : true);
+  const [pbShowHost, setPbShowHost] = useState(() => shellConfig?.ps1ShowHost !== undefined ? shellConfig.ps1ShowHost : true);
+  const [pbDirMode, setPbDirMode] = useState(() => shellConfig?.ps1DirMode || "full");
+  const [pbColor, setPbColor] = useState(() => shellConfig?.ps1Color || "cyan");
+  const [pbShowTime, setPbShowTime] = useState(() => shellConfig?.ps1ShowTime || false);
+
+  // Theme picker state
+  const [tpTheme, setTpThemeRaw] = useState("default");
+  const [tpFont, setTpFontRaw] = useState("default");
+
+  // When theme/font change, immediately apply globally
+  const setTpTheme = useCallback((key) => {
+    setTpThemeRaw(key);
+    const newConfig = updateShellConfig({ theme: key });
+    setShellConfig(newConfig);
+  }, [setShellConfig]);
+
+  const setTpFont = useCallback((key) => {
+    setTpFontRaw(key);
+    const fontDef = FONTS[key];
+    if (fontDef) {
+      const newConfig = updateShellConfig({ font: fontDef.name });
+      setShellConfig(newConfig);
+    }
+  }, [setShellConfig]);
+
+  // Load font when theme picker font changes
+  useEffect(() => {
+    const fontDef = FONTS[tpFont];
+    if (fontDef?.url) {
+      const id = `font-${tpFont}`;
+      if (!document.getElementById(id)) {
+        const link = document.createElement("link");
+        link.id = id;
+        link.rel = "stylesheet";
+        link.href = fontDef.url;
+        document.head.appendChild(link);
+      }
+    }
+  }, [tpFont]);
+
+  // Also load shell config font on mount
+  useEffect(() => {
+    if (shellConfig?.font) {
+      const fontKey = Object.keys(FONTS).find(k => FONTS[k].name === shellConfig.font);
+      if (fontKey) {
+        setTpFontRaw(fontKey);
+        const fontDef = FONTS[fontKey];
+        if (fontDef?.url) {
+          const id = `font-${fontKey}`;
+          if (!document.getElementById(id)) {
+            const link = document.createElement("link");
+            link.id = id;
+            link.rel = "stylesheet";
+            link.href = fontDef.url;
+            document.head.appendChild(link);
+          }
+        }
+      }
+    }
+    if (shellConfig?.theme && THEMES[shellConfig.theme]) {
+      setTpThemeRaw(shellConfig.theme);
+    }
+  }, []);
+
+  // Build PS1 preview string
+  const buildPs1Preview = useCallback(() => {
+    const parts = [];
+    if (pbEmoji) parts.push(pbEmoji + " ");
+    if (pbShowUser) parts.push("ubuntu");
+    if (pbShowUser && pbShowHost) parts.push("@");
+    if (pbShowHost) parts.push("gpu-box");
+    if ((pbShowUser || pbShowHost) && pbDirMode) parts.push(":");
+    if (pbDirMode === "full") parts.push("~/project");
+    else if (pbDirMode === "basename") parts.push("project");
+    if (pbShowTime) parts.push(" [10:42]");
+    parts.push("$ ");
+    return parts.join("");
+  }, [pbEmoji, pbShowUser, pbShowHost, pbDirMode, pbShowTime]);
+
+  const buildPs1String = useCallback(() => {
+    const colorCode = PS1_COLORS[pbColor]?.code || "32";
+    const parts = [];
+    parts.push(`\\[\\033[1;${colorCode}m\\]`);
+    if (pbEmoji) parts.push(pbEmoji + " ");
+    if (pbShowUser) parts.push("\\u");
+    if (pbShowUser && pbShowHost) parts.push("@");
+    if (pbShowHost) parts.push("\\h");
+    if ((pbShowUser || pbShowHost) && pbDirMode) parts.push(":");
+    if (pbDirMode === "full") parts.push("\\w");
+    else if (pbDirMode === "basename") parts.push("\\W");
+    if (pbShowTime) parts.push(" [\\t]");
+    parts.push("\\[\\033[0m\\]$ ");
+    return parts.join("");
+  }, [pbEmoji, pbShowUser, pbShowHost, pbDirMode, pbColor, pbShowTime]);
+
+  // Auto-apply prompt changes immediately as user interacts
+  useEffect(() => {
+    const ps1 = buildPs1String();
+    const newConfig = updateShellConfig({
+      ps1,
+      ps1Emoji: pbEmoji,
+      ps1Color: pbColor,
+      ps1ShowUser: pbShowUser,
+      ps1ShowHost: pbShowHost,
+      ps1DirMode: pbDirMode,
+      ps1ShowTime: pbShowTime,
+    });
+    setShellConfig(newConfig);
+  }, [buildPs1String, pbEmoji, pbColor, pbShowUser, pbShowHost, pbDirMode, pbShowTime]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // activeTheme/activeFont are defined after `st` is available (see below)
 
   useEffect(() => {
     if (scRef.current) scRef.current.scrollTop = scRef.current.scrollHeight;
@@ -115,19 +244,27 @@ export default function MenuScreen({
       if (allDone) {
         shownSections.current.add(g.label);
         localStorage.setItem("tol_sections_done", JSON.stringify([...shownSections.current]));
-        // If still in a lesson, exit first then show modal after a brief delay
+        const showModal = () => {
+          if (g.graduation) {
+            // Show graduation ShareCard instead of regular section modal
+            setGraduationTitle(g.graduation);
+            setShowShare(true);
+          } else {
+            setSectionModal(g);
+          }
+        };
         if (lessonActive) {
           exitLesson();
-          setTimeout(() => setSectionModal(g), 300);
+          setTimeout(showModal, 300);
         } else {
-          setSectionModal(g);
+          showModal();
         }
         break;
       }
     }
   }, [done, lessonActive, exitLesson]);
 
-  // Auto-show certificate when all chapters complete
+  // Auto-show graduation certificate when all chapters complete
   useEffect(() => {
     const allDone = done.size >= CHAPTERS.length;
     if (!allDone) return;
@@ -136,6 +273,7 @@ export default function MenuScreen({
     // Delay so it doesn't overlap with section completion modal
     const timer = setTimeout(() => {
       localStorage.setItem("tol_cert_shown", "1");
+      setGraduationTitle("Graduation — Shell Expert");
       setShowShare(true);
     }, sectionModal ? 600 : 100);
     return () => clearTimeout(timer);
@@ -170,13 +308,45 @@ export default function MenuScreen({
   const lessonDone = ch ? stIdx >= ch.steps.length : false;
   const isCtrlStep = st?.accept?.some(a => /^ctrl\+/i.test(a));
 
+  // Get active theme colors — during theme-picker step, always use tpTheme for live preview
+  const isThemeStep = st?.type === "theme-picker";
+  const activeTheme = isThemeStep
+    ? (THEMES[tpTheme] || THEMES.default)
+    : (THEMES[shellConfig?.theme] || THEMES[tpTheme] || THEMES.default);
+  const activeFont = isThemeStep
+    ? (FONTS[tpFont]?.family || mono)
+    : shellConfig?.font
+      ? (Object.values(FONTS).find(f => f.name === shellConfig.font)?.family || mono)
+      : FONTS[tpFont]?.family || mono;
+
+  const colorBlocks = colorBlocksBase.map(c => c || activeTheme.accent);
+
   const cwdDisplay =
     cwd === "/home/ubuntu"
       ? "~"
       : cwd?.startsWith("/home/ubuntu/")
         ? "~" + cwd.slice(12)
         : cwd || "~";
-  const prompt = mob ? "$" : `ubuntu@server:${cwdDisplay}$`;
+  // Build prompt from shell config if customised
+  const buildPromptFromConfig = (dir) => {
+    const cfg = shellConfig;
+    if (!cfg?.ps1Emoji && !cfg?.ps1Color) return null; // no customisation
+    const d = dir || cwdDisplay;
+    const bn = d === "~" ? "~" : d.split("/").pop() || "~";
+    const parts = [];
+    if (cfg.ps1Emoji) parts.push(cfg.ps1Emoji + " ");
+    if (cfg.ps1ShowUser !== false) parts.push("ubuntu");
+    if (cfg.ps1ShowUser !== false && cfg.ps1ShowHost !== false) parts.push("@");
+    if (cfg.ps1ShowHost !== false) parts.push("gpu-box");
+    if ((cfg.ps1ShowUser !== false || cfg.ps1ShowHost !== false)) parts.push(":");
+    parts.push(cfg.ps1DirMode === "basename" ? bn : d);
+    if (cfg.ps1ShowTime) parts.push(` [${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}]`);
+    parts.push("$ ");
+    return parts.join("");
+  };
+
+  const customPromptColor = shellConfig?.ps1Color ? (PS1_COLORS[shellConfig.ps1Color]?.hex || activeTheme.accent) : null;
+  const prompt = mob ? "$" : (buildPromptFromConfig() || `ubuntu@server:${cwdDisplay}$`);
 
   const handleFocus = () => {
     const sel = window.getSelection();
@@ -203,9 +373,10 @@ export default function MenuScreen({
   ];
 
   /* ── Prompt helper ── */
+  const promptColor = customPromptColor || activeTheme.accent;
   const Prompt = ({ cmd, dir }) => (
     <div style={{ marginBottom: 4 }}>
-      <span style={{ color: "#4ade80", fontWeight: 700 }}>user@terminal</span>
+      <span style={{ color: promptColor, fontWeight: 700 }}>user@terminal</span>
       <span style={{ color: "#fff" }}>:</span>
       <span style={{ color: "#38bdf8", fontWeight: 600 }}>{dir || "~"}</span>
       <span style={{ color: "#fff" }}>$ </span>
@@ -231,10 +402,13 @@ export default function MenuScreen({
         maxHeight: mob ? "40vh" : undefined,
         display: "flex",
         flexDirection: "column",
-        borderRight: mob ? "none" : "1px solid #222230",
-        borderBottom: mob ? "1px solid #222230" : "none",
+        borderRight: mob ? "none" : `1px solid ${activeTheme.border}`,
+        borderBottom: mob ? `1px solid ${activeTheme.border}` : "none",
         flexShrink: mob ? 0 : 0,
-        background: "#1a1a26",
+        background: activeTheme.panelBg,
+        fontFamily: activeFont,
+        fontSize,
+        transition: "background 0.4s ease, border-color 0.4s ease",
       }}
     >
       <div style={{ flex: 1, overflow: "auto", padding: mob ? "14px 16px" : "20px 24px", textAlign: "left" }}>
@@ -252,14 +426,16 @@ export default function MenuScreen({
           <span style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Free Practice</span>
         </div>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#f9c74f", letterSpacing: "0.06em", marginBottom: 6 }}>
+        <div style={{ fontSize: fontSize - 3, fontWeight: 700, color: "#f9c74f", letterSpacing: "0.06em", marginBottom: 6 }}>
           VIRTUAL FILESYSTEM
         </div>
-        <div style={{ fontSize: 11, color: "#999", marginBottom: 14, lineHeight: 1.55 }}>
-          A simulated Linux filesystem running in your browser. No real files are affected — experiment freely.
+        <div style={{ marginBottom: 14, padding: "10px 12px", background: "#14141e", borderRadius: 6, border: "1px solid #282836" }}>
+          <p style={{ fontSize: fontSize - 2, color: "#fff", lineHeight: 1.65, margin: 0 }}>
+            {renderCode("A simulated Linux filesystem running in your browser. No real files are affected — experiment freely. Type `man <command>` to see what any command does.")}
+          </p>
         </div>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.06em", marginBottom: 8 }}>
+        <div style={{ fontSize: fontSize - 3, fontWeight: 700, color: activeTheme.accent, letterSpacing: "0.06em", marginBottom: 8 }}>
           AVAILABLE COMMANDS
         </div>
         {(() => {
@@ -307,14 +483,14 @@ export default function MenuScreen({
                 if (!cmds.length) return null;
                 return (
                   <div key={id} style={{ marginBottom: 10 }}>
-                    <div style={{ fontSize: 10, color: "#555", fontWeight: 600, marginBottom: 3 }}>{c.title}</div>
+                    <div style={{ fontSize: fontSize - 3, color: "#555", fontWeight: 600, marginBottom: 3 }}>{c.title}</div>
                     {cmds.map(cmd => {
                       const n = cmdNum++;
                       return (
                         <div key={cmd} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "1px 0" }}>
-                          <span style={{ fontSize: 10, color: "#444", width: 18, textAlign: "right", flexShrink: 0 }}>{n}.</span>
-                          <span style={{ fontSize: 11, fontFamily: mono, color: "#ccc", flexShrink: 0 }}>{cmd}</span>
-                          <span style={{ fontSize: 10, color: "#555" }}>{cmdDescs[cmd] || ""}</span>
+                          <span style={{ fontSize: fontSize - 3, color: "#444", width: 18, textAlign: "right", flexShrink: 0 }}>{n}.</span>
+                          <span style={{ fontSize: fontSize - 2, color: "#ccc", flexShrink: 0 }}>{cmd}</span>
+                          <span style={{ fontSize: fontSize - 3, color: "#555" }}>{cmdDescs[cmd] || ""}</span>
                         </div>
                       );
                     })}
@@ -334,10 +510,13 @@ export default function MenuScreen({
         maxHeight: mob ? "50vh" : undefined,
         display: "flex",
         flexDirection: "column",
-        borderRight: mob ? "none" : "1px solid #222230",
-        borderBottom: mob ? "1px solid #222230" : "none",
+        borderRight: mob ? "none" : `1px solid ${activeTheme.border}`,
+        borderBottom: mob ? `1px solid ${activeTheme.border}` : "none",
         flexShrink: 0,
-        background: "#1a1a26",
+        background: activeTheme.panelBg,
+        fontFamily: activeFont,
+        fontSize,
+        transition: "background 0.4s ease, border-color 0.4s ease",
       }}
     >
       <div
@@ -375,6 +554,25 @@ export default function MenuScreen({
             ← <span style={{ color: "#666" }}>Esc</span>
           </button>
           <div style={{ flex: 1 }}></div>
+          {/* Font size S/M/L */}
+          <div style={{ display: "flex", gap: 2, marginRight: 6 }}>
+            {[{ label: "S", size: 13 }, { label: "M", size: 15 }, { label: "L", size: 17 }].map(({ label, size }) => (
+              <button
+                key={label}
+                onClick={() => setFontSizeTo(size)}
+                title={`${size}px`}
+                style={{
+                  background: fontSize === size ? "#33333e" : "none",
+                  border: "1px solid #33333e",
+                  color: fontSize === size ? "#fff" : "#666",
+                  fontSize: 10, cursor: "pointer", padding: "2px 6px", borderRadius: 3,
+                  fontFamily: mono, lineHeight: 1, fontWeight: fontSize === size ? 700 : 400,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {/* Progress dots */}
           <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
             {ch.steps.map((_, i) => (
@@ -385,11 +583,13 @@ export default function MenuScreen({
                   height: 6,
                   borderRadius: "50%",
                   background:
-                    i < maxStIdx
-                      ? "#4ade80"
-                      : i === stIdx && !lessonDone
-                        ? "#555"
-                        : "#282832",
+                    ch.mode === "challenge"
+                      ? (completedSteps.has(i) ? activeTheme.accent : "#282832")
+                      : i < maxStIdx
+                        ? activeTheme.accent
+                        : i === stIdx && !lessonDone
+                          ? "#555"
+                          : "#282832",
                   border:
                     i === stIdx && !lessonDone
                       ? "1px solid #4ade80"
@@ -405,7 +605,7 @@ export default function MenuScreen({
           style={{
             fontSize: 10,
             fontWeight: 700,
-            color: "#4ade80",
+            color: activeTheme.accent,
             letterSpacing: "0.06em",
             marginBottom: 6,
           }}
@@ -426,7 +626,7 @@ export default function MenuScreen({
             <p
               key={i}
               style={{
-                fontSize: 11,
+                fontSize: fontSize - 2,
                 color: "#fff",
                 lineHeight: 1.65,
                 margin: i === 0 ? 0 : "6px 0 0",
@@ -437,8 +637,58 @@ export default function MenuScreen({
           ))}
         </div>
 
-        {/* Completed steps */}
-        {maxStIdx > 0 && (
+        {/* Challenge mode: objective + checklist */}
+        {ch.mode === "challenge" && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#ef4444", letterSpacing: "0.06em", marginBottom: 6 }}>
+              OBJECTIVES — {completedSteps.size}/{ch.steps.length}
+            </div>
+            {ch.objective && (
+              <p style={{ fontSize: fontSize - 2, color: "#fbbf24", lineHeight: 1.65, marginBottom: 10, padding: "8px 10px", background: "#1a1708", borderRadius: 5, border: "1px solid #332f0a" }}>
+                {ch.objective}
+              </p>
+            )}
+            {ch.steps.map((s, i) => {
+              const done = completedSteps.has(i);
+              return (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: fontSize - 2, color: done ? "#666" : "#ccc", padding: "5px 8px", marginBottom: 2,
+                    borderLeft: done ? "2px solid #4ade80" : "2px solid #333",
+                    opacity: done ? 0.6 : 1,
+                    textDecoration: done ? "line-through" : "none",
+                    borderRadius: "0 4px 4px 0",
+                  }}
+                >
+                  <span style={{ color: done ? activeTheme.accent : "#555", marginRight: 6 }}>
+                    {done ? "✓" : "○"}
+                  </span>
+                  {s.task}
+                </div>
+              );
+            })}
+            {/* Nudge (shown on Tab) */}
+            {hint && (() => {
+              const nextUncompleted = ch.steps.findIndex((_, i) => !completedSteps.has(i));
+              const nudge = nextUncompleted >= 0 ? ch.steps[nextUncompleted].nudge : null;
+              return nudge ? (
+                <div style={{
+                  fontSize: fontSize - 2, padding: "8px 12px", background: "#1a1708", border: "1px solid #332f0a",
+                  borderRadius: 5, marginTop: 8, color: "#fbbf24", lineHeight: 1.6,
+                }}>
+                  💡 {nudge}
+                </div>
+              ) : null;
+            })()}
+            <div style={{ marginTop: 10, fontSize: 10, color: "#666" }}>
+              <span style={{ color: activeTheme.accent }}>Tab</span> nudge · type <span style={{ fontFamily: mono, color: "#888" }}>solution</span> for answer
+            </div>
+          </div>
+        )}
+
+        {/* Guided mode: Completed steps */}
+        {!ch.mode && maxStIdx > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#666", letterSpacing: "0.06em", marginBottom: 6 }}>COMPLETED</div>
             {ch.steps.slice(0, maxStIdx).map((s, i) => (
@@ -447,7 +697,7 @@ export default function MenuScreen({
                 onClick={() => goToStep(i)}
                 className="tg-completed-step"
                 style={{
-                  fontSize: 11, color: i === stIdx ? "#fff" : "#666", padding: "4px 8px", marginBottom: 2,
+                  fontSize: fontSize - 2, color: i === stIdx ? "#fff" : "#666", padding: "4px 8px", marginBottom: 2,
                   borderLeft: i === stIdx ? "2px solid #4ade80" : "2px solid #1a2e1a",
                   opacity: i === stIdx ? 1 : 0.7,
                   cursor: "pointer", transition: "color 0.15s, opacity 0.15s",
@@ -455,21 +705,21 @@ export default function MenuScreen({
                   borderRadius: "0 4px 4px 0",
                 }}
               >
-                <span style={{ color: "#4ade80", marginRight: 6 }}>&#10003;</span>
+                <span style={{ color: activeTheme.accent, marginRight: 6 }}>&#10003;</span>
                 {s.task}
               </div>
             ))}
           </div>
         )}
 
-        {/* Task — the main instruction */}
-        {!lessonDone && st && (
+        {/* Task — the main instruction (guided mode only) */}
+        {!lessonDone && st && !ch.mode && (
           <>
             <div
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: "#4ade80",
+                color: activeTheme.accent,
                 letterSpacing: "0.06em",
                 marginBottom: 6,
               }}
@@ -498,14 +748,14 @@ export default function MenuScreen({
               style={{
                 marginBottom: 10,
                 padding: "10px 14px",
-                background: "#0d1a12",
+                background: `${activeTheme.accent}08`,
                 borderRadius: 6,
-                border: "1px solid #1a2e1a",
+                border: `1px solid ${activeTheme.accent}20`,
               }}
             >
               <div
                 style={{
-                  fontSize: 15,
+                  fontSize: fontSize + 2,
                   color: "#f0f0f0",
                   lineHeight: 1.55,
                   fontWeight: 600,
@@ -518,7 +768,7 @@ export default function MenuScreen({
             {/* Learn context */}
             <div
               style={{
-                fontSize: 12,
+                fontSize: fontSize - 1,
                 color: "#fff",
                 lineHeight: 1.65,
                 marginBottom: 10,
@@ -527,11 +777,134 @@ export default function MenuScreen({
               {renderCode(st.learn)}
             </div>
 
+            {/* Settings Picker — Theme, Font, Size, and Prompt combined */}
+            {st.type === "theme-picker" && (
+              <div style={{ marginBottom: 12, padding: "10px 12px", background: "#14141e", borderRadius: 6, border: "1px solid #282836" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#c084fc", letterSpacing: "0.06em", marginBottom: 8 }}>TERMINAL SETTINGS</div>
+
+                {/* Theme grid */}
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Theme</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 }}>
+                  {Object.entries(THEMES).map(([key, t]) => (
+                    <button key={key} onClick={() => setTpTheme(key)} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                      background: tpTheme === key ? t.bg : "transparent",
+                      border: `1px solid ${tpTheme === key ? t.accent : "#33333e"}`,
+                      borderRadius: 4, cursor: "pointer", width: "100%", textAlign: "left",
+                    }}>
+                      <span style={{ width: 16, height: 16, borderRadius: 3, background: t.bg, border: `1px solid ${t.border}`, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.accent }} />
+                      </span>
+                      <span style={{ fontSize: 11, color: tpTheme === key ? t.textBright : "#888", fontFamily: mono }}>{t.name}</span>
+                      {tpTheme === key && <span style={{ marginLeft: "auto", color: t.accent, fontSize: 10 }}>●</span>}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Font picker */}
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Font</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 }}>
+                  {Object.entries(FONTS).map(([key, f]) => (
+                    <button key={key} onClick={() => setTpFont(key)} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "6px 8px",
+                      background: tpFont === key ? "#2a2a3a" : "transparent",
+                      border: `1px solid ${tpFont === key ? activeTheme.accent : "#33333e"}`,
+                      borderRadius: 4, cursor: "pointer", width: "100%", textAlign: "left",
+                    }}>
+                      <span style={{ fontSize: 11, color: tpFont === key ? "#fff" : "#888", fontFamily: f.family }}>{f.name}</span>
+                      {f.ligatures && <span style={{ fontSize: 9, color: "#666", fontFamily: mono }}>ligatures</span>}
+                      {tpFont === key && <span style={{ marginLeft: "auto", color: activeTheme.accent, fontSize: 10 }}>●</span>}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Text size */}
+                <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Text Size</div>
+                <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+                  {[{ label: "S", size: 13 }, { label: "M", size: 15 }, { label: "L", size: 17 }].map(({ label, size }) => (
+                    <button
+                      key={label}
+                      onClick={() => setFontSizeTo(size)}
+                      style={{
+                        flex: 1, padding: "6px 0", textAlign: "center",
+                        background: fontSize === size ? "#2a2a3a" : "transparent",
+                        border: `1px solid ${fontSize === size ? activeTheme.accent : "#33333e"}`,
+                        color: fontSize === size ? "#fff" : "#888",
+                        fontSize: 11, cursor: "pointer", borderRadius: 4,
+                        fontFamily: mono, fontWeight: fontSize === size ? 700 : 400,
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Prompt Builder */}
+                <div style={{ marginTop: 4, paddingTop: 10, borderTop: "1px solid #282836" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#c084fc", letterSpacing: "0.06em", marginBottom: 8 }}>PROMPT</div>
+
+                  {/* Emoji picker */}
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Prefix</div>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {PS1_EMOJIS.map(e => (
+                        <button key={e} onClick={() => setPbEmoji(e === pbEmoji ? "" : e)} style={{
+                          background: e === pbEmoji ? "#2a2a3a" : "transparent", border: "1px solid #33333e",
+                          color: "#fff", fontSize: 14, cursor: "pointer", padding: "4px 8px", borderRadius: 4,
+                        }}>{e}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Toggles */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+                    {[
+                      ["Username", pbShowUser, setPbShowUser],
+                      ["Hostname", pbShowHost, setPbShowHost],
+                      ["Timestamp", pbShowTime, setPbShowTime],
+                    ].map(([label, val, setter]) => (
+                      <label key={label} style={{ fontSize: 10, color: "#aaa", cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                        <input type="checkbox" checked={val} onChange={() => setter(!val)} style={{ accentColor: activeTheme.accent }} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Directory mode */}
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Directory</div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {[["full", "Full path"], ["basename", "Folder only"]].map(([val, label]) => (
+                        <button key={val} onClick={() => setPbDirMode(val)} style={{
+                          background: pbDirMode === val ? "#2a2a3a" : "transparent", border: "1px solid #33333e",
+                          color: pbDirMode === val ? "#fff" : "#888", fontSize: 10, cursor: "pointer", padding: "4px 8px", borderRadius: 4, fontFamily: mono,
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Color picker */}
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, color: "#888", marginBottom: 4 }}>Color</div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {Object.entries(PS1_COLORS).map(([key, { label, hex }]) => (
+                        <button key={key} onClick={() => setPbColor(key)} style={{
+                          background: pbColor === key ? hex + "33" : "transparent", border: `1px solid ${pbColor === key ? hex : "#33333e"}`,
+                          color: hex, fontSize: 10, cursor: "pointer", padding: "4px 8px", borderRadius: 4, fontFamily: mono,
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
             {/* Hint */}
-            {hint && (
+            {hint && !st.type && (
               <div
                 style={{
-                  fontSize: FS,
+                  fontSize,
                   padding: "8px 12px",
                   background: "#0f1a14",
                   border: "1px solid #1a2e1a",
@@ -540,8 +913,8 @@ export default function MenuScreen({
                   fontFamily: mono,
                 }}
               >
-                <span style={{ color: "#4ade80" }}>$ </span>
-                <span style={{ color: "#4ade80", fontWeight: 600 }}>
+                <span style={{ color: activeTheme.accent }}>$ </span>
+                <span style={{ color: activeTheme.accent, fontWeight: 600 }}>
                   {st.hint}
                 </span>
               </div>
@@ -555,7 +928,12 @@ export default function MenuScreen({
                 borderTop: "1px solid #282836",
               }}
             >
-              <span style={{ color: "#4ade80", fontSize: 10, fontWeight: 600 }}>
+              <span style={{ color: "#888", fontSize: 10, fontFamily: mono }}>
+                man &lt;cmd&gt;
+              </span>{" "}
+              <span style={{ color: "#666", fontSize: 10 }}>look up any command</span>
+              <br />
+              <span style={{ color: activeTheme.accent, fontSize: 10, fontWeight: 600 }}>
                 Tab
               </span>{" "}
               {hint ? "hide" : "show"} hint
@@ -570,8 +948,8 @@ export default function MenuScreen({
           <div>
             <div
               style={{
-                fontSize: 15,
-                color: "#4ade80",
+                fontSize: fontSize + 2,
+                color: activeTheme.accent,
                 fontWeight: 700,
                 marginBottom: 6,
                 display: "flex",
@@ -584,7 +962,7 @@ export default function MenuScreen({
 
             <p
               style={{
-                fontSize: 12,
+                fontSize: fontSize - 1,
                 color: "#ccccccff",
                 margin: "0 0 12px",
                 lineHeight: 1.5,
@@ -611,9 +989,9 @@ export default function MenuScreen({
                 <span
                   key={i}
                   style={{
-                    fontSize: 11,
+                    fontSize: fontSize - 2,
                     fontFamily: mono,
-                    color: "#4ade80",
+                    color: activeTheme.accent,
                     background: "#0f1a14",
                     border: "1px solid #1a2e1a",
                     padding: "3px 8px",
@@ -649,7 +1027,7 @@ export default function MenuScreen({
                   style={{
                     background: "#0f1f0f",
                     border: "1.5px solid #1f3a1f",
-                    color: "#4ade80",
+                    color: activeTheme.accent,
                     fontSize: 12,
                     cursor: "pointer",
                     padding: "8px 14px",
@@ -723,10 +1101,13 @@ export default function MenuScreen({
         width: mob ? "100%" : "40%",
         minWidth: mob ? undefined : 300,
         overflow: mob ? "visible" : "auto",
-        borderRight: mob ? "none" : "1px solid #222230",
-        borderBottom: mob ? "1px solid #222230" : "none",
+        borderRight: mob ? "none" : `1px solid ${activeTheme.border}`,
+        borderBottom: mob ? `1px solid ${activeTheme.border}` : "none",
         flexShrink: 0,
-        background: "#1a1a26",
+        background: activeTheme.panelBg,
+        fontFamily: activeFont,
+        fontSize,
+        transition: "background 0.4s ease, border-color 0.4s ease",
       }}
     >
       <div style={{ padding: mob ? "14px 16px 8px" : "20px 24px 0 24px" }}>
@@ -745,9 +1126,9 @@ export default function MenuScreen({
               margin: "auto",
               padding: 0,
               background: "transparent",
-              fontSize: 11,
+              fontSize: fontSize - 2,
               lineHeight: 1.3,
-              color: "#4ade80",
+              color: activeTheme.accent,
               userSelect: "none",
               marginBottom: 16,
               textAlign: "center",
@@ -757,9 +1138,9 @@ export default function MenuScreen({
             {ASCII_ART.join("\n")}
           </pre>
 
-          <div style={{ fontSize: 12, lineHeight: 1.9 }}>
+          <div style={{ fontSize: fontSize - 1, lineHeight: 1.9 }}>
             <div>
-              <span style={{ color: "#4ade80", fontWeight: 700 }}>
+              <span style={{ color: promptColor, fontWeight: 700 }}>
                 user@terminal
               </span>
             </div>
@@ -779,7 +1160,7 @@ export default function MenuScreen({
                   textOverflow: "ellipsis",
                 }}
               >
-                <span style={{ color: "#4ade80", fontWeight: 700 }}>
+                <span style={{ color: promptColor, fontWeight: 700 }}>
                   {l.label}
                 </span>
                 <span style={{ color: "#fff" }}>: </span>
@@ -788,7 +1169,7 @@ export default function MenuScreen({
                   <span
                     style={{ marginLeft: 6, fontSize: 10, letterSpacing: 1 }}
                   >
-                    <span style={{ color: "#4ade80" }}>
+                    <span style={{ color: promptColor }}>
                       {"█".repeat(filled)}
                     </span>
                     <span style={{ color: "#33333e" }}>
@@ -840,7 +1221,7 @@ export default function MenuScreen({
           }}
         >
           <div>
-            <span style={{ color: "#4ade80", fontWeight: 700 }}>
+            <span style={{ color: promptColor, fontWeight: 700 }}>
               user@terminal
             </span>
           </div>
@@ -852,19 +1233,19 @@ export default function MenuScreen({
             }}
           />
           <div>
-            <span style={{ color: "#4ade80", fontWeight: 700 }}>OS</span>
+            <span style={{ color: promptColor, fontWeight: 700 }}>OS</span>
             <span style={{ color: "#fff" }}>: </span>
             <span style={{ color: "#f0f0f0" }}>terminallyonline.sh</span>
           </div>
           <div>
-            <span style={{ color: "#4ade80", fontWeight: 700 }}>Progress</span>
+            <span style={{ color: promptColor, fontWeight: 700 }}>Progress</span>
             <span style={{ color: "#fff" }}>: </span>
             <span style={{ color: "#f0f0f0" }}>
               {done.size}/{CHAPTERS.length} ({pct}%)
             </span>
           </div>
           <div>
-            <span style={{ color: "#4ade80", fontWeight: 700 }}>Commands</span>
+            <span style={{ color: promptColor, fontWeight: 700 }}>Commands</span>
             <span style={{ color: "#fff" }}>: </span>
             <span style={{ color: "#f0f0f0" }}>{totalCmds} typed</span>
           </div>
@@ -926,7 +1307,7 @@ export default function MenuScreen({
               style={{
                 background: "#0f1a14",
                 border: "1px solid #1f3a1f",
-                color: "#4ade80",
+                color: activeTheme.accent,
                 fontSize: 11,
                 cursor: "pointer",
                 padding: "4px 10px",
@@ -973,7 +1354,13 @@ export default function MenuScreen({
      RIGHT PANE — chapter list (menu), terminal (lesson), or sandbox
      ════════════════════════════════════════════════ */
   const rightPane = sandboxActive ? (
-    <SandboxScreen mob={mob} />
+    <SandboxScreen mob={mob} activeTheme={activeTheme} activeFont={activeFont} fontSize={fontSize} onCompleteAll={() => {
+      const allDone = new Set(CHAPTERS.map((_, i) => i));
+      setDone(allDone);
+      saveProgress(allDone, getTotalCommands());
+      CHAPTERS.forEach((_, i) => saveStepProgress(i, CHAPTERS[i].steps.length));
+      setScreen("menu");
+    }} />
   ) : lessonActive ? (
     <div
       style={{
@@ -982,6 +1369,10 @@ export default function MenuScreen({
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        background: activeTheme.bg,
+        fontFamily: activeFont,
+        fontSize,
+        transition: "background 0.3s, font-family 0.2s",
       }}
       onClick={handleFocus}
     >
@@ -992,7 +1383,7 @@ export default function MenuScreen({
           flex: 1,
           overflow: "auto",
           padding: mob ? "14px 16px" : "20px 24px",
-          fontSize: FS,
+          fontSize: fontSize,
           lineHeight: 1.6,
         }}
       >
@@ -1005,35 +1396,67 @@ export default function MenuScreen({
                 e.t === "note" || e.t === "done" || e.t === "help" ? 10 : 2,
             }}
           >
-            {e.t === "in" && (
-              <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
-                <span
-                  style={{
-                    color: "#4ade80",
-                    whiteSpace: "pre",
-                    fontWeight: 600,
-                    marginRight: 4,
-                  }}
-                >
-                  {mob ? "$" : `ubuntu@server:${(e.dir === "/home/ubuntu" ? "~" : e.dir?.startsWith("/home/ubuntu/") ? "~" + e.dir.slice(12) : e.dir || "~")}$`}{" "}
-                </span>
-                <span style={{ color: e.v ? "#e8e8e8" : "transparent" }}>
-                  {e.v || "."}
-                </span>
-              </div>
-            )}
+            {e.t === "in" && (() => {
+              const d = e.dir === "/home/ubuntu" ? "~" : e.dir?.startsWith("/home/ubuntu/") ? "~" + e.dir.slice(12) : e.dir || "~";
+              const customP = !mob && buildPromptFromConfig(d);
+              return (
+                <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      color: customPromptColor || activeTheme.prompt,
+                      whiteSpace: "pre",
+                      fontWeight: 600,
+                      marginRight: 4,
+                    }}
+                  >
+                    {mob ? "$" : (customP || `ubuntu@server:${d}$`)}{" "}
+                  </span>
+                  <span style={{ color: e.v ? activeTheme.textBright : "transparent" }}>
+                    {e.v || "."}
+                  </span>
+                </div>
+              );
+            })()}
             {e.t === "out" && (
               <pre
                 style={{
                   margin: "2px 0 4px",
                   padding: 0,
                   background: "transparent",
-                  fontSize: FS,
+                  fontSize: "inherit",
                   lineHeight: 1.6,
-                  color: "#b0b0b0",
+                  color: activeTheme.text,
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
                   textAlign: "left",
+                }}
+              >
+                {e.v}
+              </pre>
+            )}
+            {e.t === "colored-ls" && (
+              <pre
+                style={{
+                  margin: "2px 0 4px", padding: 0, background: "transparent",
+                  fontSize: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap", textAlign: "left",
+                }}
+              >
+                <span style={{ color: "#00d4ff", fontWeight: 700 }}>project/</span>{"  "}
+                <span style={{ color: "#00d4ff", fontWeight: 700 }}>scripts/</span>{"  "}
+                <span style={{ color: "#fabd2f" }}>train.py</span>{"  "}
+                <span style={{ color: "#fabd2f" }}>utils.py</span>{"  "}
+                <span style={{ color: activeTheme.accent }}>README.md</span>{"  "}
+                <span style={{ color: activeTheme.accent }}>notes.md</span>{"  "}
+                <span style={{ color: "#ff6b6b" }}>deploy.sh</span>{"  "}
+                <span style={{ color: "#ff6b6b" }}>backup.sh</span>
+              </pre>
+            )}
+            {e.t === "ansi" && (
+              <pre
+                style={{
+                  margin: "2px 0 4px", padding: 0, background: "transparent",
+                  fontSize: "inherit", lineHeight: 1.6, whiteSpace: "pre-wrap", textAlign: "left",
+                  color: e.color || activeTheme.accent, fontWeight: 700,
                 }}
               >
                 {e.v}
@@ -1044,9 +1467,9 @@ export default function MenuScreen({
                 style={{
                   padding: "6px 10px",
                   marginTop: 4,
-                  background: "#0d1a0d",
+                  background: activeTheme.noteBg || "#0d1a0d",
                   borderRadius: "0 4px 4px 0",
-                  color: "#8cd98c",
+                  color: activeTheme.noteText || "#8cd98c",
                 }}
               >
                 {renderCode(e.v)}
@@ -1057,7 +1480,7 @@ export default function MenuScreen({
             )}
             {e.t === "done" && (
               <div
-                style={{ color: "#4ade80", padding: "8px 0", fontWeight: 700 }}
+                style={{ color: activeTheme.accent, padding: "8px 0", fontWeight: 700 }}
               >
                 ✓ {e.v} — complete
               </div>
@@ -1068,7 +1491,7 @@ export default function MenuScreen({
                   margin: "2px 0",
                   padding: 0,
                   background: "transparent",
-                  fontSize: FS,
+                  fontSize: "inherit",
                   lineHeight: 1.6,
                   color: "#ccccccff",
                   whiteSpace: "pre-wrap",
@@ -1096,7 +1519,7 @@ export default function MenuScreen({
           >
             {isCtrlStep ? (
               <>
-                <span style={{ color: "#f97316", fontSize: FS, fontFamily: mono, animation: "tgPulse 1.5s ease-in-out infinite" }}>
+                <span style={{ color: "#f97316", fontSize: "inherit", fontFamily: mono, animation: "tgPulse 1.5s ease-in-out infinite" }}>
                   ● process running
                 </span>
                 {/* Hidden input to capture keystrokes */}
@@ -1111,7 +1534,7 @@ export default function MenuScreen({
               </>
             ) : (
               <>
-                <span style={{ color: "#4ade80", fontWeight: 700, marginRight: 8, fontSize: mob ? 16 : FS }}>
+                <span style={{ color: customPromptColor || activeTheme.prompt, fontWeight: 700, marginRight: 8, fontSize: mob ? 16 : fontSize }}>
                   {prompt}{" "}
                 </span>
                 <input
@@ -1131,11 +1554,11 @@ export default function MenuScreen({
                     background: "transparent",
                     border: "none",
                     outline: "none",
-                    color: "#f0f0f0",
-                    fontSize: mob ? 16 : FS,
-                    fontFamily: mono,
+                    color: activeTheme.textBright,
+                    fontSize: mob ? 16 : fontSize,
+                    fontFamily: activeFont,
                     padding: mob ? "8px 0" : "4px 0",
-                    caretColor: "#4ade80",
+                    caretColor: customPromptColor || activeTheme.prompt,
                   }}
                 />
               </>
@@ -1152,7 +1575,7 @@ export default function MenuScreen({
               marginTop: hist.length > 0 ? 4 : 0,
             }}
           >
-            <span style={{ color: "#4ade80", fontWeight: 700, marginRight: 8, fontSize: mob ? 16 : FS }}>
+            <span style={{ color: activeTheme.accent, fontWeight: 700, marginRight: 8, fontSize: mob ? 16 : fontSize }}>
               {prompt}{" "}
             </span>
             <input
@@ -1173,10 +1596,10 @@ export default function MenuScreen({
                 border: "none",
                 outline: "none",
                 color: "#f0f0f0",
-                fontSize: mob ? 16 : FS,
+                fontSize: mob ? 16 : fontSize,
                 fontFamily: mono,
                 padding: mob ? "8px 0" : "4px 0",
-                caretColor: "#4ade80",
+                caretColor: activeTheme.accent,
               }}
             />
           </div>
@@ -1190,6 +1613,8 @@ export default function MenuScreen({
         flex: mob ? "none" : 1,
         overflow: mob ? "visible" : "auto",
         padding: mob ? "12px 12px" : "20px 24px",
+        fontFamily: activeFont,
+        fontSize,
       }}
     >
       <Prompt cmd="ls ./chapters/" />
@@ -1208,7 +1633,7 @@ export default function MenuScreen({
             >
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: fontSize - 2,
                   fontWeight: 700,
                   color: g.color,
                   letterSpacing: "0.04em",
@@ -1225,6 +1650,7 @@ export default function MenuScreen({
                 (m) => m.type === "chapter" && m.idx === ci,
               );
               const active = navIdx === mi;
+              const isFun = id === "custom";
               return (
                 <button
                   key={id}
@@ -1234,10 +1660,12 @@ export default function MenuScreen({
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
-                    background: active ? "#1a1a26" : "transparent",
+                    background: active
+                      ? (isFun ? "rgba(167, 139, 250, 0.08)" : "#1a1a26")
+                      : (isFun ? "rgba(167, 139, 250, 0.03)" : "transparent"),
                     border: active
-                      ? "1px solid #363644"
-                      : "1px solid transparent",
+                      ? `1px solid ${isFun ? "rgba(167, 139, 250, 0.3)" : "#363644"}`
+                      : `1px solid ${isFun ? "rgba(167, 139, 250, 0.1)" : "transparent"}`,
                     borderRadius: 6,
                     padding: mob ? "7px 6px" : "7px 10px",
                     cursor: "pointer",
@@ -1253,8 +1681,8 @@ export default function MenuScreen({
                 >
                   <span
                     style={{
-                      fontSize: 11,
-                      color: d ? "#4ade80" : active ? "#4ade80" : "#666",
+                      fontSize: fontSize - 2,
+                      color: d ? activeTheme.accent : active ? activeTheme.accent : "#666",
                       width: 18,
                       textAlign: "right",
                       flexShrink: 0,
@@ -1265,7 +1693,7 @@ export default function MenuScreen({
                   </span>
                   <span
                     style={{
-                      fontSize: 13,
+                      fontSize,
                       flexShrink: 0,
                       width: 18,
                       textAlign: "center",
@@ -1276,7 +1704,7 @@ export default function MenuScreen({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <span
                       style={{
-                        fontSize: 13,
+                        fontSize,
                         fontWeight: 600,
                         color: active ? g.color : "#ddd",
                       }}
@@ -1286,13 +1714,22 @@ export default function MenuScreen({
 
                     {!mob && (
                       <span
-                        style={{ fontSize: 11, color: "#777", marginLeft: 8 }}
+                        style={{ fontSize: fontSize - 2, color: "#777", marginLeft: 8 }}
                       >
                         {c.desc}
                       </span>
                     )}
                   </div>
-                  <span style={{ fontSize: 10, color: "#666", flexShrink: 0 }}>
+                  {isFun && !d && (
+                    <span style={{
+                      fontSize: 8, fontWeight: 700, color: "#a78bfa",
+                      background: "rgba(167, 139, 250, 0.1)",
+                      padding: "2px 5px", borderRadius: 3,
+                      border: "1px solid rgba(167, 139, 250, 0.2)",
+                      letterSpacing: "0.04em", flexShrink: 0,
+                    }}>FUN</span>
+                  )}
+                  <span style={{ fontSize: fontSize - 3, color: "#666", flexShrink: 0 }}>
                     {c.steps.length}
                   </span>
                 </button>
@@ -1305,7 +1742,7 @@ export default function MenuScreen({
         {(() => {
           const sbActive = navIdx === menuItems.length - 1;
           return (
-            <div style={{ marginTop: 8, paddingTop: 12, borderTop: "1px solid #222230" }}>
+            <div style={{ marginTop: 8, paddingTop: 12, borderTop: `1px solid ${activeTheme.border}` }}>
               <button
                 onClick={() => setScreen("sandbox")}
                 onMouseEnter={() => setNavIdx(menuItems.length - 1)}
@@ -1328,12 +1765,12 @@ export default function MenuScreen({
                   boxSizing: "border-box",
                 }}
               >
-                <span style={{ fontSize: 15, flexShrink: 0 }}>⟩_</span>
+                <span style={{ fontSize: fontSize + 2, flexShrink: 0 }}>⟩_</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#38bdf8" }}>
+                  <div style={{ fontSize, fontWeight: 600, color: "#38bdf8" }}>
                     Free Practice
                   </div>
-                  <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                  <div style={{ fontSize: fontSize - 3, color: "#666", marginTop: 2 }}>
                     Open sandbox — experiment freely
                   </div>
                 </div>
@@ -1371,9 +1808,8 @@ export default function MenuScreen({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        background: mob
-          ? bg
-          : "radial-gradient(rgb(0 252 255) 50%, rgb(141 255 185) 100%)",
+        background: mob ? activeTheme.bg : activeTheme.outerBg,
+        transition: "background 0.6s ease",
       }}
     >
       {showOnboarding && !lessonActive && !sandboxActive && (
@@ -1382,31 +1818,9 @@ export default function MenuScreen({
       )}
       {showInfo && <InfoModal mob={mob} onClose={() => setShowInfo(false)} onReset={() => { resetAllProgress(); setDone(new Set()); shownSections.current = new Set(); setShowOnboarding(true); }} />}
       {showShare && (
-        <ShareCard mob={mob} done={done} onClose={() => setShowShare(false)} />
+        <ShareCard mob={mob} done={done} title={graduationTitle} onClose={() => { setShowShare(false); setGraduationTitle(null); }} />
       )}
 
-      {sectionModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setSectionModal(null)}>
-          <div style={{ background: "#1a1a26", border: `1.5px solid ${sectionModal.color}40`, borderRadius: 12, padding: mob ? 28 : 40, maxWidth: 440, width: "100%", fontFamily: mono, textAlign: "center" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🎉</div>
-            <h2 style={{ color: "#f0f0f0", fontSize: 20, fontWeight: 800, margin: "0 0 6px" }}>
-              <span style={{ color: sectionModal.color }}>{sectionModal.label}</span> Complete
-            </h2>
-            <p style={{ color: "#999", fontSize: 12, margin: "0 0 20px", lineHeight: 1.6 }}>
-              You finished all {sectionModal.ids.length} chapters in this section.
-            </p>
-            <p style={{ color: "#ccc", fontSize: 13, lineHeight: 1.7, margin: "0 0 24px", textAlign: "left" }}>
-              {sectionModal.summary}
-            </p>
-            <button
-              onClick={() => setSectionModal(null)}
-              style={{ background: `${sectionModal.color}15`, border: `1.5px solid ${sectionModal.color}40`, color: sectionModal.color, fontSize: 14, fontWeight: 700, cursor: "pointer", padding: "10px 28px", borderRadius: 8, fontFamily: mono }}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Terminal chrome */}
       <div
@@ -1417,11 +1831,12 @@ export default function MenuScreen({
           overflow: "hidden",
           margin: mob ? 0 : "42px",
           borderRadius: mob ? 0 : 12,
-          border: mob ? "none" : "1px solid #2a2a3a",
+          border: mob ? "none" : `1px solid ${activeTheme.chromeBorder}`,
           boxShadow: mob
             ? "none"
             : "0 20px 60px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.03)",
-          background: "#191922",
+          background: activeTheme.bg,
+          transition: "background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease",
         }}
       >
         {/* Title bar */}
@@ -1431,16 +1846,17 @@ export default function MenuScreen({
             alignItems: "center",
             gap: 7,
             padding: "9px 14px",
-            background: "linear-gradient(180deg, #2e2e3a 0%, #26262e 100%)",
-            borderBottom: "1px solid #222230",
+            background: activeTheme.titleBar,
+            borderBottom: `1px solid ${activeTheme.titleBorder}`,
+            transition: "background 0.4s ease, border-color 0.4s ease",
             borderRadius: mob ? 0 : "12px 12px 0 0",
             flexShrink: 0,
           }}
         >
           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#3a3a44" }} />
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#3a3a44" }} />
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#3a3a44" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: activeTheme.dot, transition: "background 0.4s ease" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: activeTheme.dot, transition: "background 0.4s ease" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: activeTheme.dot, transition: "background 0.4s ease" }} />
           </div>
          {(lessonActive || sandboxActive) ? ( <span
             style={{
@@ -1464,7 +1880,7 @@ export default function MenuScreen({
               marginRight: 34,
             }}
           >
-            terminally<span style={{ color: "#4ade80" }}>online</span>
+            terminally<span style={{ color: activeTheme.prompt }}>online</span>
             <span style={{ color: "#666" }}>.sh</span>
           </p>
           )}
@@ -1477,7 +1893,8 @@ export default function MenuScreen({
             display: "flex",
             flexDirection: mob ? "column" : "row",
             overflow: mob ? "auto" : "hidden",
-            background: "#191922",
+            background: activeTheme.bg,
+            transition: "background 0.4s ease",
           }}
         >
           {leftPane}

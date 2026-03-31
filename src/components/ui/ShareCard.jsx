@@ -93,7 +93,7 @@ function drawCard(canvas, stats) {
   // Title
   ctx.fillStyle = "#4ade80";
   ctx.font = `700 16px ${mono}`;
-  ctx.fillText("ALL CHAPTERS COMPLETE", ix, y);
+  ctx.fillText(stats.title || "ALL CHAPTERS COMPLETE", ix, y);
   y += 8;
 
   // Divider
@@ -129,7 +129,7 @@ function drawCard(canvas, stats) {
   ctx.restore();
 }
 
-export default function ShareCard({ done, onClose, mob }) {
+export default function ShareCard({ done, onClose, mob, title }) {
   const canvasRef = useRef(null);
   const [downloaded, setDownloaded] = useState(false);
 
@@ -138,18 +138,20 @@ export default function ShareCard({ done, onClose, mob }) {
   const allComplete = done.size >= CHAPTERS.length;
   const allBadges = CHAPTERS.filter((_, i) => done.has(i)).map(c => c.badge).filter(Boolean);
 
+  const isGraduation = !!title;
   const stats = {
     chapters: done.size,
     total: CHAPTERS.length,
     commands: totalCommands,
     streak,
     badges: allBadges,
+    title: title ? title.toUpperCase() : (allComplete ? "ALL CHAPTERS COMPLETE" : "YOUR PROGRESS"),
   };
 
   const canvasCallback = useCallback((node) => {
     canvasRef.current = node;
     if (node) drawCard(node, stats);
-  }, [stats.chapters, stats.commands, stats.streak]);
+  }, [stats]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDownload = () => {
     const canvas = canvasRef.current;
@@ -162,11 +164,16 @@ export default function ShareCard({ done, onClose, mob }) {
     setTimeout(() => setDownloaded(false), 2000);
   };
 
+  const shareText = `I just completed ${done.size}/${CHAPTERS.length} chapters on terminallyonline.sh — an interactive terminal tutorial.\n\n${totalCommands} commands typed. ${allBadges.length} badges earned.`;
+
   const handleShareX = () => {
-    const text = encodeURIComponent(
-      `I just completed all ${CHAPTERS.length} chapters on terminallyonline.sh — an interactive terminal tutorial.\n\n${totalCommands} commands typed. ${allBadges.length} badges earned.\n\nterminallyonline.sh`
-    );
-    window.open(`https://x.com/intent/tweet?text=${text}`, "_blank", "noopener");
+    const text = encodeURIComponent(shareText);
+    window.open(`https://x.com/intent/tweet?text=${text}&url=${encodeURIComponent("https://terminallyonline.sh")}`, "_blank", "noopener");
+  };
+
+  const handleShareLinkedIn = () => {
+    const url = encodeURIComponent("https://terminallyonline.sh");
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, "_blank", "noopener");
   };
 
   const btnStyle = (bg, border, color) => ({
@@ -188,11 +195,13 @@ export default function ShareCard({ done, onClose, mob }) {
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: allComplete ? "#4ade80" : "#f0f0f0" }}>
-              {allComplete ? "All Chapters Complete!" : "Your Progress"}
+            <div style={{ fontSize: 15, fontWeight: 700, color: isGraduation || allComplete ? "#4ade80" : "#f0f0f0" }}>
+              {title || (allComplete ? "All Chapters Complete!" : "Your Progress")}
             </div>
-            <div style={{ fontSize: 11, color: "#777" }}>
-              {allComplete ? "Share your achievement" : `${done.size}/${CHAPTERS.length} chapters completed`}
+            <div style={{ fontSize: 11, color: isGraduation ? "#e0e0e0" : "#777" }}>
+              {isGraduation
+                ? "You're now ready to use the real shell confidently — or keep learning."
+                : allComplete ? "Share your achievement" : `${done.size}/${CHAPTERS.length} chapters completed`}
             </div>
           </div>
         </div>
@@ -209,15 +218,55 @@ export default function ShareCard({ done, onClose, mob }) {
           />
         </div>
 
-        {/* Action buttons */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={handleDownload} style={btnStyle("#14141e", "#33333e", "#e0e0e0")}>
-            {downloaded ? "✓ Saved" : "↓ Download"}
-          </button>
-          <button onClick={handleShareX} style={btnStyle("#0f1a14", "#1f3a1f", "#4ade80")}>
-            Share on X →
-          </button>
-        </div>
+        {/* What's Next — contains action buttons + links */}
+        {isGraduation ? (
+          <div style={{ padding: "12px 14px", background: "#14141e", borderRadius: 6, border: "1px solid #282836" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#4ade80", letterSpacing: "0.06em", marginBottom: 10 }}>WHAT'S NEXT?</div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <button onClick={handleDownload} style={btnStyle("#14141e", "#33333e", "#e0e0e0")}>
+                {downloaded ? "✓ Saved" : "↓ Download"}
+              </button>
+              <button onClick={handleShareX} style={btnStyle("#0f1a14", "#1f3a1f", "#4ade80")}>
+                Share on X
+              </button>
+              <button onClick={handleShareLinkedIn} style={btnStyle("#0f141a", "#1a2a3f", "#38bdf8")}>
+                Share on LinkedIn
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <a href="https://cmdchallenge.com/" target="_blank" rel="noopener noreferrer" style={{
+                color: "#38bdf8", fontSize: 12, textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <span style={{ color: "#666" }}>→</span> cmdchallenge.com <span style={{ color: "#555", fontSize: 10 }}>— Command line challenges</span>
+              </a>
+              <a href="https://sadservers.com/" target="_blank" rel="noopener noreferrer" style={{
+                color: "#38bdf8", fontSize: 12, textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <span style={{ color: "#666" }}>→</span> sadservers.com <span style={{ color: "#555", fontSize: 10 }}>— Linux troubleshooting practice</span>
+              </a>
+              <a href="https://buymeacoffee.com/tomaslawton" target="_blank" rel="noopener noreferrer" style={{
+                color: "#666", fontSize: 11, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, marginTop: 4,
+                fontFamily: mono,
+              }}>
+                <span style={{ color: "#555" }}>→</span> Support the Creator <span style={{ color: "#555", fontSize: 10 }}>— buymeacoffee.com/tomaslawton</span>
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={handleDownload} style={btnStyle("#14141e", "#33333e", "#e0e0e0")}>
+              {downloaded ? "✓ Saved" : "↓ Download"}
+            </button>
+            <button onClick={handleShareX} style={btnStyle("#0f1a14", "#1f3a1f", "#4ade80")}>
+              Share on X
+            </button>
+            <button onClick={handleShareLinkedIn} style={btnStyle("#0f141a", "#1a2a3f", "#38bdf8")}>
+              Share on LinkedIn
+            </button>
+          </div>
+        )}
 
         {/* Close */}
         <button onClick={onClose} style={{
