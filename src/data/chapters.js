@@ -4,7 +4,7 @@ export const CHAPTERS = [
     desc: "Your first commands, navigation, and getting help",
     badge: "Explorer",
     teach: [
-      "Welcome to the command line. The terminal is a text-based interface to your computer — instead of clicking icons, you type commands. It's how developers, sysadmins, and data scientists interact with servers, automate workflows, and get things done fast.",
+      "Welcome to the command line. The terminal (or terminal emulator) is a text-based interface to your computer — instead of clicking icons, you type commands. It's how developers, sysadmins, and data scientists interact with servers, automate workflows, and get things done fast.",
       "Every command follows the pattern `command [flags] [arguments]`. The command is what to do, flags modify how, and arguments say what to act on.",
       "The filesystem is a tree of directories (folders) and files. You're always 'inside' one directory. `pwd` shows where you are, `ls` shows what's here, `cd` moves you somewhere else.",
       "Press `Tab` for a hint if you're stuck, `↑`/`↓` to recall previous commands. Open a real terminal alongside this tutorial and try each command there too — you'll learn faster by comparing.",

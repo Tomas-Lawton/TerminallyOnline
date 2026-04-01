@@ -630,15 +630,83 @@ export default function TerminallyOnline() {
       return;
     }
 
+    // Chapter-aware ls — tracks files created/modified by completed steps
+    const chapterLs = (() => {
+      if (!ch) return null;
+      const id = ch.id;
+      const s = maxStIdx; // furthest step reached
+      if (id === "files") {
+        // base: config.yaml  notes.md  old.log  scripts  tmp_logs
+        const items = ["config.yaml", "notes.md", "old.log", "scripts", "tmp_logs"];
+        if (s > 0) items.push("logs");         // step 0: mkdir logs
+        if (s > 2) items.push("notes.txt");    // step 2: touch notes.txt
+        if (s > 4) items.push("config.backup.yaml"); // step 4: cp config.yaml config.backup.yaml
+        if (s > 5) { // step 5: mv notes.md README.md
+          const ni = items.indexOf("notes.md");
+          if (ni >= 0) items.splice(ni, 1);
+          items.push("README.md");
+        }
+        if (s > 6) { // step 6: rm old.log
+          const oi = items.indexOf("old.log");
+          if (oi >= 0) items.splice(oi, 1);
+        }
+        if (s > 7) { // step 7: rm -r tmp_logs/
+          const ti = items.indexOf("tmp_logs");
+          if (ti >= 0) items.splice(ti, 1);
+        }
+        return items.sort().join("  ");
+      }
+      if (id === "tools") {
+        // base: models  src  project
+        const items = ["models", "src", "project"];
+        if (s > 0) items.push("current");      // step 0: ln -s models/v2 current
+        if (s > 3) items.push("src.tar.gz");   // step 3: tar -czf src.tar.gz src/
+        if (s > 5) items.push("project.zip");  // step 5: zip -r project.zip project/
+        return items.sort().join("  ");
+      }
+      if (id === "pipe") {
+        const items = ["project", "notes.md", "scripts"];
+        if (s > 0) items.push("greeting.txt"); // step 0: echo hello world > greeting.txt
+        return items.sort().join("  ");
+      }
+      if (id === "git") {
+        const items = ["project", "notes.md", "scripts"];
+        if (s > 0) items.push("project.git");  // step 0: git clone
+        return items.sort().join("  ");
+      }
+      return null;
+    })();
+
     // Common commands always work — the terminal should feel real
     const common = {
       "pwd": cwd,
-      "ls": "project  notes.md  scripts",
+      "ls": chapterLs || "project  notes.md  scripts",
       "ls -la": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
       "ls -al": "drwxr-xr-x  5 ubuntu ubuntu 4096 Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3771 Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4096 Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
       "ls -l": "drwxr-xr-x  8 ubuntu ubuntu 4096 Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4096 Mar 12 14:00 scripts",
       "ls -a": ".  ..  .bashrc  .ssh  project  notes.md  scripts",
       "ls -lah": "drwxr-xr-x  5 ubuntu ubuntu 4.0K Mar 18 22:15 .\ndrwxr-xr-x  3 ubuntu ubuntu 4.0K Mar 18 22:00 ..\n-rw-r--r--  1 ubuntu ubuntu 3.7K Mar  5 14:00 .bashrc\ndrwxr-xr-x  2 ubuntu ubuntu 4.0K Mar 10 09:30 .ssh\ndrwxr-xr-x  8 ubuntu ubuntu 4.0K Mar 17 16:45 project\n-rw-r--r--  1 ubuntu ubuntu  120 Mar 15 11:20 notes.md\ndrwxr-xr-x  3 ubuntu ubuntu 4.0K Mar 12 14:00 scripts",
+      // Chapter-specific cat/ls overrides for created files
+      ...(ch?.id === "files" ? Object.fromEntries(Object.entries({
+        "cat config.yaml": "# Application Config\nport: 8080\nhost: 0.0.0.0\ndebug: false\nlog_level: info",
+        "cat notes.txt": maxStIdx > 2 ? "(empty file)" : null,
+        "cat config.backup.yaml": maxStIdx > 4 ? "# Application Config\nport: 8080\nhost: 0.0.0.0\ndebug: false\nlog_level: info" : null,
+        "cat README.md": maxStIdx > 5 ? "# Project Notes" : null,
+        "ls logs": maxStIdx > 0 ? "(empty directory)" : null,
+        "ls tmp_logs": maxStIdx <= 7 ? "debug.log  crash.log" : null,
+      }).filter(([, v]) => v !== null)) : {}),
+      ...(ch?.id === "pipe" ? Object.fromEntries(Object.entries({
+        "cat greeting.txt": maxStIdx > 0 ? (maxStIdx > 1 ? "hello world\ngoodbye" : "hello world") : null,
+      }).filter(([, v]) => v !== null)) : {}),
+      ...(ch?.id === "tools" ? {
+        "ls models": "v1  v2  v3",
+        "ls models/v2": "model.bin  config.json",
+        "ls src": "main.py  utils.py  config.py",
+        "ls project": "index.js  package.json  README.md",
+      } : {}),
+      ...(ch?.id === "git" ? Object.fromEntries(Object.entries({
+        "ls project.git": maxStIdx > 0 ? "src  README.md  package.json  .git" : null,
+      }).filter(([, v]) => v !== null)) : {}),
       "whoami": "ubuntu",
       "hostname": "gpu-box",
       "uname": "Linux",

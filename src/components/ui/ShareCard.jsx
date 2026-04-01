@@ -246,6 +246,11 @@ export default function ShareCard({ done, onClose, mob, title }) {
               }}>
                 <span style={{ color: "#666" }}>→</span> sadservers.com <span style={{ color: "#555", fontSize: 10 }}>— Linux troubleshooting practice</span>
               </a>
+              <a href="https://www.w3schools.com/linux/" target="_blank" rel="noopener noreferrer" style={{
+                color: "#38bdf8", fontSize: 12, textDecoration: "none", display: "flex", alignItems: "center", gap: 6,
+              }}>
+                <span style={{ color: "#666" }}>→</span> w3schools.com/linux <span style={{ color: "#555", fontSize: 10 }}>— Linux reference & tutorials</span>
+              </a>
               <a href="https://buymeacoffee.com/tomaslawton" target="_blank" rel="noopener noreferrer" style={{
                 color: "#666", fontSize: 11, textDecoration: "none", display: "flex", alignItems: "center", gap: 6, marginTop: 4,
                 fontFamily: mono,
